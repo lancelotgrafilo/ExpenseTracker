@@ -13,18 +13,32 @@ import {
 import {
   addExpense,
   deleteExpense,
+  getDarkModePref,
   getExpenses,
+  setDarkModePref,
+  updateExpense,
 } from "../../storage/expenseStorage";
 import { Expense } from "../../types/expense";
 
 export default function HomeScreen() {
   const systemScheme = useColorScheme();
-  const [darkMode, setDarkMode] = useState(systemScheme === "dark");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [note, setNote] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [darkMode, setDarkMode] = useState(systemScheme === "dark");
+
+  useFocusEffect(
+    useCallback(() => {
+      getDarkModePref().then((saved) => {
+        if (saved !== null) setDarkMode(saved);
+      });
+    }, []),
+  );
 
   const theme = darkMode ? darkColors : lightColors;
 
@@ -39,30 +53,91 @@ export default function HomeScreen() {
     }, [loadExpenses]),
   );
 
-  async function handleSave() {
-    if (!amount || !category) {
-      Alert.alert("Missing info", "Please enter an amount and category.");
-      return;
-    }
-    await addExpense({
-      amount: parseFloat(amount),
-      category,
-      date: new Date().toISOString().split("T")[0],
-      note: note || undefined,
-    });
+  function resetForm() {
     setAmount("");
     setCategory("");
     setNote("");
+    setEditingId(null);
     setFormOpen(false);
+  }
+
+  function openForEdit(expense: Expense) {
+    setAmount(expense.amount.toString());
+    setCategory(expense.category);
+    setNote(expense.note ?? "");
+    setEditingId(expense.id);
+    setFormOpen(true);
+  }
+
+  async function handleSave() {
+    const trimmedCategory = category.trim();
+    const parsedAmount = parseFloat(amount);
+
+    if (!amount || !trimmedCategory) {
+      Alert.alert("Missing info", "Please enter an amount and category.");
+      return;
+    }
+
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert(
+        "Invalid amount",
+        "Amount must be a number greater than zero.",
+      );
+      return;
+    }
+
+    if (editingId) {
+      await updateExpense({
+        id: editingId,
+        amount: parsedAmount,
+        category: trimmedCategory,
+        date:
+          expenses.find((e) => e.id === editingId)?.date ??
+          new Date().toISOString().split("T")[0],
+        note: note.trim() || undefined,
+      });
+    } else {
+      await addExpense({
+        amount: parsedAmount,
+        category: trimmedCategory,
+        date: new Date().toISOString().split("T")[0],
+        note: note.trim() || undefined,
+      });
+    }
+
+    resetForm();
     loadExpenses();
   }
 
-  async function handleDelete(id: string) {
-    await deleteExpense(id);
-    loadExpenses();
+  function handleDelete(id: string) {
+    Alert.alert(
+      "Delete Expense",
+      "Are you sure you want to delete this expense? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteExpense(id);
+            if (editingId === id) resetForm();
+            loadExpenses();
+          },
+        },
+      ],
+    );
   }
 
   const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const filteredExpenses = expenses.filter((e) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      e.category.toLowerCase().includes(query) ||
+      (e.note?.toLowerCase().includes(query) ?? false)
+    );
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -75,17 +150,21 @@ export default function HomeScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => setDarkMode(!darkMode)}
+          onPress={() => {
+            const newValue = !darkMode;
+            setDarkMode(newValue);
+            setDarkModePref(newValue);
+          }}
           style={styles.themeToggle}
         >
           <Text style={{ fontSize: 20 }}>{darkMode ? "☀️" : "🌙"}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Collapsible Add Form */}
+      {/* Collapsible Add/Edit Form */}
       <TouchableOpacity
         style={[styles.addButton, { backgroundColor: theme.accent }]}
-        onPress={() => setFormOpen(!formOpen)}
+        onPress={() => (formOpen ? resetForm() : setFormOpen(true))}
       >
         <Text style={styles.addButtonText}>
           {formOpen ? "✕ Close" : "+ Add Expense"}
@@ -94,6 +173,11 @@ export default function HomeScreen() {
 
       {formOpen && (
         <View style={[styles.form, { backgroundColor: theme.card }]}>
+          {editingId && (
+            <Text style={[styles.editingLabel, { color: theme.accent }]}>
+              Editing expense
+            </Text>
+          )}
           <TextInput
             style={[
               styles.input,
@@ -129,14 +213,31 @@ export default function HomeScreen() {
             style={[styles.saveButton, { backgroundColor: theme.accent }]}
             onPress={handleSave}
           >
-            <Text style={styles.addButtonText}>Save</Text>
+            <Text style={styles.addButtonText}>
+              {editingId ? "Update" : "Save"}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
 
+      <TextInput
+        style={[
+          styles.searchInput,
+          {
+            color: theme.text,
+            borderColor: theme.border,
+            backgroundColor: theme.card,
+          },
+        ]}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder="Search by category or note"
+        placeholderTextColor={theme.subtext}
+      />
+
       {/* Expense List */}
       <FlatList
-        data={expenses}
+        data={filteredExpenses}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 40 }}
         ListEmptyComponent={
@@ -145,7 +246,11 @@ export default function HomeScreen() {
           </Text>
         }
         renderItem={({ item }) => (
-          <View style={[styles.bubble, { backgroundColor: theme.card }]}>
+          <TouchableOpacity
+            style={[styles.bubble, { backgroundColor: theme.card }]}
+            onPress={() => openForEdit(item)}
+            activeOpacity={0.7}
+          >
             <View style={{ flex: 1 }}>
               <Text style={[styles.bubbleCategory, { color: theme.text }]}>
                 {item.category}
@@ -167,7 +272,7 @@ export default function HomeScreen() {
                 <Text style={{ color: "#ff5252", marginTop: 4 }}>Delete</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
@@ -216,6 +321,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 10,
   },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    marginBottom: 12,
+  },
+  editingLabel: { fontWeight: "600", fontSize: 13, marginBottom: 2 },
   input: {
     borderWidth: 1,
     borderRadius: 12,

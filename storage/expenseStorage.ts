@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Expense } from "../types/expense";
 
 const STORAGE_KEY = "@expenses";
+const THEME_KEY = "@darkMode";
 
 // Get all expenses
 export async function getExpenses(): Promise<Expense[]> {
@@ -51,4 +52,30 @@ export async function updateExpense(updatedExpense: Expense): Promise<void> {
   } catch (error) {
     console.error("Failed to update expense:", error);
   }
+}
+
+export async function getDarkModePref(): Promise<boolean | null> {
+  try {
+    const value = await AsyncStorage.getItem(THEME_KEY);
+    return value !== null ? JSON.parse(value) : null;
+  } catch (error) {
+    console.error("Failed to load theme preference:", error);
+    return null;
+  }
+}
+
+export async function setDarkModePref(value: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(THEME_KEY, JSON.stringify(value));
+  } catch (error) {
+    console.error("Failed to save theme preference:", error);
+  }
+}
+
+export function expensesToCSV(expenses: Expense[]): string {
+  const header = "Date,Category,Amount,Note";
+  const rows = expenses.map((e) =>
+    [e.date, e.category, e.amount, e.note ?? ""].map((v) => `"${v}"`).join(","),
+  );
+  return [header, ...rows].join("\n");
 }
