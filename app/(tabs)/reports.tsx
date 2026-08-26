@@ -17,6 +17,16 @@ import { expensesToCSV, getExpenses } from "../../storage/expenseStorage";
 import { Expense } from "../../types/expense";
 type Period = "daily" | "weekly" | "monthly";
 
+const CATEGORY_META: Record<string, { icon: string; color: string }> = {
+  Food: { icon: "🍔", color: "#FFE3E3" },
+  Transport: { icon: "🚗", color: "#E3F0FF" },
+  Bills: { icon: "🧾", color: "#FFF3D6" },
+  Shopping: { icon: "🛍️", color: "#F3E3FF" },
+  Health: { icon: "💊", color: "#E3FFF0" },
+  Entertainment: { icon: "🎬", color: "#FFE3F5" },
+  Others: { icon: "📦", color: "#EAEAEA" },
+};
+
 const CHART_COLORS = [
   "#007aff",
   "#34c759",
@@ -178,6 +188,30 @@ export default function ReportsScreen() {
           No expenses for this period.
         </Text>
       )}
+      {Object.keys(categoryTotals).length > 0 && (
+        <View style={styles.cardGrid}>
+          {Object.entries(categoryTotals)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, amount]) => {
+              const meta = CATEGORY_META[cat] ?? {
+                icon: "💰",
+                color: "#EEEEEE",
+              };
+              return (
+                <View
+                  key={cat}
+                  style={[styles.categoryCard, { backgroundColor: meta.color }]}
+                >
+                  <Text style={styles.categoryIcon}>{meta.icon}</Text>
+                  <Text style={styles.categoryCardLabel}>{cat}</Text>
+                  <Text style={styles.categoryCardAmount}>
+                    ₱{amount.toFixed(2)}
+                  </Text>
+                </View>
+              );
+            })}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -237,4 +271,24 @@ const styles = StyleSheet.create({
   },
   exportButtonText: { fontWeight: "600", fontSize: 14 },
   empty: { textAlign: "center", marginTop: 40, fontSize: 15 },
+  cardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 40,
+  },
+  categoryCard: {
+    width: "48%",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+  },
+  categoryIcon: { fontSize: 24, marginBottom: 6 },
+  categoryCardLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1c1c1e",
+    marginBottom: 2,
+  },
+  categoryCardAmount: { fontSize: 18, fontWeight: "700", color: "#1c1c1e" },
 });
