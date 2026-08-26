@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import {
   Alert,
   FlatList,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -26,9 +27,19 @@ export default function HomeScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("");
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [note, setNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const CATEGORIES = [
+    "Food",
+    "Transport",
+    "Bills",
+    "Shopping",
+    "Health",
+    "Entertainment",
+    "Others",
+  ];
+  const [category, setCategory] = useState("");
 
   const [darkMode, setDarkMode] = useState(systemScheme === "dark");
 
@@ -70,11 +81,17 @@ export default function HomeScreen() {
   }
 
   async function handleSave() {
-    const trimmedCategory = category.trim();
     const parsedAmount = parseFloat(amount);
 
-    if (!amount || !trimmedCategory) {
+    if (!amount) {
       Alert.alert("Missing info", "Please enter an amount and category.");
+      return;
+    }
+    if (!amount || !category) {
+      Alert.alert(
+        "Missing info",
+        "Please enter an amount and select a category.",
+      );
       return;
     }
 
@@ -90,7 +107,7 @@ export default function HomeScreen() {
       await updateExpense({
         id: editingId,
         amount: parsedAmount,
-        category: trimmedCategory,
+        category: category,
         date:
           expenses.find((e) => e.id === editingId)?.date ??
           new Date().toISOString().split("T")[0],
@@ -99,7 +116,7 @@ export default function HomeScreen() {
     } else {
       await addExpense({
         amount: parsedAmount,
-        category: trimmedCategory,
+        category: category,
         date: new Date().toISOString().split("T")[0],
         note: note.trim() || undefined,
       });
@@ -189,16 +206,69 @@ export default function HomeScreen() {
             placeholder="Amount"
             placeholderTextColor={theme.subtext}
           />
-          <TextInput
+
+          <TouchableOpacity
             style={[
               styles.input,
-              { color: theme.text, borderColor: theme.border },
+              { borderColor: theme.border, justifyContent: "center" },
             ]}
-            value={category}
-            onChangeText={setCategory}
-            placeholder="Category (e.g. Food)"
-            placeholderTextColor={theme.subtext}
-          />
+            onPress={() => setCategoryModalVisible(true)}
+          >
+            <Text
+              style={{
+                color: category ? theme.text : theme.subtext,
+                fontSize: 15,
+              }}
+            >
+              {category || "Select category"}
+            </Text>
+          </TouchableOpacity>
+
+          <Modal
+            visible={categoryModalVisible}
+            animationType="fade"
+            transparent
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setCategoryModalVisible(false)}
+            >
+              <View
+                style={[
+                  styles.categoryModalContent,
+                  { backgroundColor: theme.card },
+                ]}
+              >
+                {CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.categoryOption,
+                      { borderColor: theme.border },
+                      cat === category && {
+                        backgroundColor: theme.accent + "20",
+                      },
+                    ]}
+                    onPress={() => {
+                      setCategory(cat);
+                      setCategoryModalVisible(false);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: cat === category ? theme.accent : theme.text,
+                        fontWeight: cat === category ? "600" : "400",
+                        fontSize: 16,
+                      }}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
           <TextInput
             style={[
               styles.input,
@@ -358,4 +428,26 @@ const styles = StyleSheet.create({
   bubbleDate: { fontSize: 12, marginTop: 4 },
   bubbleAmount: { fontSize: 16, fontWeight: "700" },
   empty: { textAlign: "center", marginTop: 40, fontSize: 15 },
+
+  pickerWrapper: {
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryModalContent: {
+    width: "80%",
+    borderRadius: 16,
+    paddingVertical: 8,
+  },
+  categoryOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+  },
 });
