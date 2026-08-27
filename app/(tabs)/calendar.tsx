@@ -1,19 +1,29 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
+
 import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
-import { Calendar } from "react-native-calendars";
-import { getExpenses } from "../../storage/expenseStorage";
+import { Calendar, DateData } from "react-native-calendars";
+import { getDarkModePref, getExpenses } from "../../storage/expenseStorage";
 import { Expense } from "../../types/expense";
 
 export default function CalendarScreen() {
   const systemScheme = useColorScheme();
-  const darkMode = systemScheme === "dark";
+  const [darkMode, setDarkMode] = useState(systemScheme === "dark");
+
+  useFocusEffect(
+    useCallback(() => {
+      getDarkModePref().then((saved) => {
+        if (saved !== null) setDarkMode(saved);
+      });
+    }, []),
+  );
   const theme = darkMode ? darkColors : lightColors;
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -26,6 +36,11 @@ export default function CalendarScreen() {
       getExpenses().then(setExpenses);
     }, []),
   );
+
+  const dailyTotals: Record<string, number> = {};
+  expenses.forEach((e) => {
+    dailyTotals[e.date] = (dailyTotals[e.date] || 0) + e.amount;
+  });
 
   const selectedDayExpenses = expenses.filter((e) => e.date === selectedDate);
   const selectedDayTotal = selectedDayExpenses.reduce(
@@ -44,6 +59,48 @@ export default function CalendarScreen() {
     selectedColor: theme.accent,
   };
 
+  function renderDay({ date, state }: { date?: DateData; state?: string }) {
+    if (!date) return <View />;
+    const dayTotal = dailyTotals[date.dateString];
+    const isSelected = date.dateString === selectedDate;
+    const isToday = state === "today";
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.dayCell,
+          isSelected && { backgroundColor: theme.accent, borderRadius: 8 },
+        ]}
+        onPress={() => setSelectedDate(date.dateString)}
+      >
+        <Text
+          style={{
+            color: isSelected ? "#fff" : isToday ? theme.accent : theme.text,
+            fontWeight: isToday ? "700" : "400",
+            fontSize: 14,
+          }}
+        >
+          {date.day}
+        </Text>
+        {dayTotal ? (
+          <Text
+            style={{
+              color: isSelected ? "#fff" : theme.accent,
+              fontSize: 9,
+              fontWeight: "600",
+              marginTop: 1,
+            }}
+          >
+            ₱
+            {dayTotal >= 1000
+              ? `${(dayTotal / 1000).toFixed(1)}k`
+              : dayTotal.toFixed(0)}
+          </Text>
+        ) : null}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
@@ -52,18 +109,16 @@ export default function CalendarScreen() {
 
       <View style={[styles.calendarCard, { backgroundColor: theme.card }]}>
         <Calendar
-          onDayPress={(day) => setSelectedDate(day.dateString)}
-          markedDates={markedDates}
+          key={darkMode ? "dark" : "light"}
+          dayComponent={renderDay}
           theme={{
             backgroundColor: theme.card,
             calendarBackground: theme.card,
             textSectionTitleColor: theme.subtext,
-            dayTextColor: theme.text,
             monthTextColor: theme.text,
-            selectedDayBackgroundColor: theme.accent,
-            selectedDayTextColor: "#fff",
-            todayTextColor: theme.accent,
             arrowColor: theme.accent,
+            textDisabledColor: theme.subtext + "60",
+            todayTextColor: theme.accent,
           }}
         />
       </View>
@@ -156,4 +211,11 @@ const styles = StyleSheet.create({
   bubbleNote: { fontSize: 13, marginTop: 2 },
   bubbleAmount: { fontSize: 16, fontWeight: "700" },
   empty: { textAlign: "center", marginTop: 40, fontSize: 15 },
+
+  dayCell: {
+    width: 32,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

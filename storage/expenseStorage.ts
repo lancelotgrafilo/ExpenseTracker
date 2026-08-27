@@ -3,6 +3,7 @@ import { Expense } from "../types/expense";
 
 const STORAGE_KEY = "@expenses";
 const THEME_KEY = "@darkMode";
+const BUDGET_KEY = "@dailyBudget";
 
 // Get all expenses
 export async function getExpenses(): Promise<Expense[]> {
@@ -78,4 +79,22 @@ export function expensesToCSV(expenses: Expense[]): string {
     [e.date, e.category, e.amount, e.note ?? ""].map((v) => `"${v}"`).join(","),
   );
   return [header, ...rows].join("\n");
+}
+
+export async function getDailyBudget(): Promise<number | null> {
+  try {
+    const value = await AsyncStorage.getItem(BUDGET_KEY);
+    return value !== null ? JSON.parse(value) : null;
+  } catch (error) {
+    console.error("Failed to load daily budget:", error);
+    return null;
+  }
+}
+
+export async function setDailyBudget(amount: number): Promise<void> {
+  try {
+    await AsyncStorage.setItem(BUDGET_KEY, JSON.stringify(amount));
+  } catch (error) {
+    console.error("Failed to save daily budget:", error);
+  }
 }

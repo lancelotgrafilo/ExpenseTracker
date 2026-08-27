@@ -13,33 +13,26 @@ import {
   View,
 } from "react-native";
 import { PieChart } from "react-native-chart-kit";
-import { expensesToCSV, getExpenses } from "../../storage/expenseStorage";
+import { CATEGORY_META } from "../../constants/categories";
+import {
+  expensesToCSV,
+  getDarkModePref,
+  getExpenses,
+} from "../../storage/expenseStorage";
 import { Expense } from "../../types/expense";
 type Period = "daily" | "weekly" | "monthly";
 
-const CATEGORY_META: Record<string, { icon: string; color: string }> = {
-  Food: { icon: "🍔", color: "#FFE3E3" },
-  Transport: { icon: "🚗", color: "#E3F0FF" },
-  Bills: { icon: "🧾", color: "#FFF3D6" },
-  Shopping: { icon: "🛍️", color: "#F3E3FF" },
-  Health: { icon: "💊", color: "#E3FFF0" },
-  Entertainment: { icon: "🎬", color: "#FFE3F5" },
-  Others: { icon: "📦", color: "#EAEAEA" },
-};
-
-const CHART_COLORS = [
-  "#007aff",
-  "#34c759",
-  "#ff9500",
-  "#ff2d55",
-  "#af52de",
-  "#5ac8fa",
-  "#ffcc00",
-];
-
 export default function ReportsScreen() {
   const systemScheme = useColorScheme();
-  const darkMode = systemScheme === "dark";
+  const [darkMode, setDarkMode] = useState(systemScheme === "dark");
+
+  useFocusEffect(
+    useCallback(() => {
+      getDarkModePref().then((saved) => {
+        if (saved !== null) setDarkMode(saved);
+      });
+    }, []),
+  );
   const theme = darkMode ? darkColors : lightColors;
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -81,10 +74,10 @@ export default function ReportsScreen() {
   });
 
   const chartData = Object.entries(categoryTotals).map(
-    ([category, amount], i) => ({
+    ([category, amount]) => ({
       name: category,
       amount,
-      color: CHART_COLORS[i % CHART_COLORS.length],
+      color: CATEGORY_META[category]?.chartColor ?? "#868E96",
       legendFontColor: theme.text,
       legendFontSize: 13,
     }),
@@ -195,12 +188,15 @@ export default function ReportsScreen() {
             .map(([cat, amount]) => {
               const meta = CATEGORY_META[cat] ?? {
                 icon: "💰",
-                color: "#EEEEEE",
+                cardColor: "#EEEEEE",
               };
               return (
                 <View
                   key={cat}
-                  style={[styles.categoryCard, { backgroundColor: meta.color }]}
+                  style={[
+                    styles.categoryCard,
+                    { backgroundColor: meta.cardColor },
+                  ]}
                 >
                   <Text style={styles.categoryIcon}>{meta.icon}</Text>
                   <Text style={styles.categoryCardLabel}>{cat}</Text>
